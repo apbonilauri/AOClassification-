@@ -11,7 +11,7 @@ detach()
 #Load packages neededz for the analysis
 #All packages must be installes with install.packages() function
 lapply(c("sem","ggplot2", "psych", "RCurl", "irr", "nortest", "moments","GPArotation","nFactors",
-         "boot","psy","ResearchMethods"), library, character.only=T)
+         "boot","psy","ResearchMethods", "car","vcd", "gridExtra"), library, character.only=T)
 #####################################################################################
 #IMPORTING DATA
 #####################################################################################
@@ -40,17 +40,26 @@ datamosaic<-read.csv(textConnection(webdata1))
 #Reconding variables to a numerical/discrete format. This format of data was used 
 #to create some of the graphical displays.
 
-T1 <-as.numeric(car::recode(data$R1, "'33A1' = 1; '33A2' = 2; '33A3' = 3;
+data$T1 <-as.numeric(car::recode(data$R1, "'33A1' = 1; '33A2' = 2; '33A3' = 3;
                          '33B1' = 4; '33B2' = 5; '33B3' = 6;
                          '33C1' = 7; '33C2' = 8; '33C3' = 9"))
-T2 <-as.numeric(car::recode(data$R2, "'33A1' = 1; '33A2' = 2; '33A3' = 3;
+data$T2 <-as.numeric(car::recode(data$R2, "'33A1' = 1; '33A2' = 2; '33A3' = 3;
                          '33B1' = 4; '33B2' = 5; '33B3' = 6;
                          '33C1' = 7; '33C2' = 8; '33C3' = 9"))
-T3 <-as.numeric(car::recode(data$R3, "'33A1' = 1; '33A2' = 2; '33A3' = 3;
+data$T3 <-as.numeric(car::recode(data$R3, "'33A1' = 1; '33A2' = 2; '33A3' = 3;
                          '33B1' = 4; '33B2' = 5; '33B3' = 6;
                          '33C1' = 7; '33C2' = 8; '33C3' = 9"))
+attach(data)
 numdata<-data.frame(T1,T2,T3) #creating a dataframe with the ne recoded variables
         
+##Graph 2 - Responses pattern mosaic comparing PGY2 and PGY3 answers for each moment of aplication.
+#Create a subset in the data to contain students from the 2nd year
+pg2 <- subset(data,Gyear == 2)
+View(pg2)
+
+#Creating a subset in the data to contain students from the 3rd year
+pg3 <- subset(data,Gyear == 3)
+View(pg3)
 ###########################################################################################
 #EXPLORATORY DATA ANALYSIS
 ###########################################################################################
@@ -61,6 +70,9 @@ numdata<-data.frame(T1,T2,T3) #creating a dataframe with the ne recoded variable
 #head(data)
 #names(data)
 summary(data)#This comand will provide a whole set of descriptive results for each variables
+Hmisc::describe(data$R1)
+Hmisc::describe(data$R2)
+Hmisc::describe(data$R3)
 #ad.test() # Anderson-Darling test for normality
 #skewness() #Will provide skweness analysis
 #kurtosis() - 3 #Will provide kurtosis analysis
@@ -127,23 +139,13 @@ LineplotT3<-ggplot(Interdotgraph, aes(data.subjects, T3, group=data.Case)) +
 #Arrange ggplot objects in the same plot area
 grid.arrange(LineplotT1,LineplotT2,LineplotT3,nrow=3,ncol=1)
 
-##Graph 2 - Responses pattern mosaic comparing PGY2 and PGY3 answers for each moment of aplication.
-#Create a subset in the data to contain students from the 2nd year
-pg2 <- subset(data,Gyear == 2)
-View(pg2)
-
-#Creating a subset in the data to contain students from the 3rd year
-pg3 <- subset(data,Gyear == 3)
-View(pg3)
-
 #Create mosaic plot
 mosaic(Year ~ Responses | Time, data = datamosaic,highlighting_direction = "right")
 
 ###########################################################################################
 #TABLE 2: INTRA OBSERVER AGREEMENT 
 ###########################################################################################
-
-#Creating data frames for agreement between times of application (T1, T2 and T3)
+#Creating data frames for agreement between times of application for PGY2 (T1, T2 and T3)
 Inter1<-data.frame(R1,R2) #Agreement between Before and After AO Training
 agree(Inter1, tolerance=0)
 obj1<-ckappa(Inter1)
@@ -172,6 +174,7 @@ agreementplot(t(obj3$table), main = "Agreement between After and
               xlab_just="right", ylab_just="right")
 
 #Graph 4 - Path of responses per student for the three moments of application
+par(mar=c(4,4,1,1)+0.1)
 parcoord(numdata, main=
            "Path of responses in T1, T2 and T2")
 text(locator(), "33A1", 2)
@@ -185,10 +188,10 @@ text(locator(), "33C2", 2)
 text(locator(), "33C3", 2)
 
 #Graph 5 - Comparison of the difference of responses between moments of application
-bland_altman_plot <- function(x,y,xlab="Average testresult")
-{
-  x <- numR1 #definig variables for the function
-  y <- numR2
+
+###T1xT2
+  x <- T1 #definig variables for the function
+  y <- T2
   d <- Case
   diff <- data.frame(x-y)
   diff$colour[diff$x...y>=2]<-"red" #creating color vector
@@ -197,54 +200,67 @@ bland_altman_plot <- function(x,y,xlab="Average testresult")
   diff$colour[diff$x...y> -2 & diff$x...y<0] <-"blue"
   diff$colour[diff$x...y==0] <-"darkgreen"
   
-  dotchart(diff$x...y, groups=d,pch=25,ylim=c(-6,6),xlab=xlab,ylab=ylab,
+  dotchart(diff$x...y, groups=d,pch=25,ylim=c(-6,6),xlab="Difference AO (Before and After)",
            color=diff$colour) #calling plot
-  abline(v=mean(diff$x...y)-c(-1,0,1)*sd(diff$x...y),lty=2) #drawing abline
-}
-bland_altman_plot(d,diff$x...y,xlab="Difference AO (Before and After)")
-text(locator(), "X", 2)
-text(locator(), "Sd", 2)
+  abline(abline(v=0-c(-1,0,1),lty=5, bg=2)) #drawing abline
 
-bland_altman_plot <- function(x,y,xlab="Average testresult")
-{
-  x <- numR1
-  y <- numR3
-  d <- Case
-  diff <- data.frame(x-y)
-  diff$colour[diff$x...y>=2]<-"red"
-  diff$colour[diff$x...y<= -2]<-"red"
-  diff$colour[diff$x...y<2 & diff$x...y>0] <-"blue"
-  diff$colour[diff$x...y> -2 & diff$x...y<0] <-"blue"
-  diff$colour[diff$x...y==0] <-"darkgreen"
-  
-  dotchart(diff$x...y, groups=d,pch=25,ylim=c(-6,6),xlab=xlab,ylab=ylab,
-           color=diff$colour)
-  abline(v=mean(diff$x...y)-c(-1,0,1)*sd(diff$x...y),lty=2)
-}
-bland_altman_plot(d,diff$x...y,xlab="Difference AO (Before and After)")
-text(locator(), "X", 2)
-text(locator(), "Sd", 2)
+###T1xT3
+x <- T1 #definig variables for the function
+y <- T3
+d <- Case
+diff <- data.frame(x-y)
+diff$colour[diff$x...y>=2]<-"red" #creating color vector
+diff$colour[diff$x...y<= -2]<-"red"
+diff$colour[diff$x...y<2 & diff$x...y>0] <-"blue"
+diff$colour[diff$x...y> -2 & diff$x...y<0] <-"blue"
+diff$colour[diff$x...y==0] <-"darkgreen"
 
-bland_altman_plot <- function(x,y,xlab="Average testresult")
-{
-  x <- numR2
-  y <- numR3
-  d <- Case
-  diff <- data.frame(x-y)
-  diff$colour[diff$x...y>=2]<-"red"
-  diff$colour[diff$x...y<= -2]<-"red"
-  diff$colour[diff$x...y<2 & diff$x...y>0] <-"blue"
-  diff$colour[diff$x...y> -2 & diff$x...y<0] <-"blue"
-  diff$colour[diff$x...y==0] <-"darkgreen"
-  
-  dotchart(diff$x...y, groups=d,pch=25,ylim=c(-6,6),xlab=xlab,ylab=ylab,
-           color=diff$colour)
-  abline(v=mean(diff$x...y)-c(-1,0,1)*sd(diff$x...y),lty=3)
-}
-bland_altman_plot(d,diff$x...y,xlab="Difference AO (Before and After)")
-text(locator(), "X", 2)
-text(locator(), "Sd", 2)
+dotchart(diff$x...y, groups=d,pch=25,ylim=c(-6,6),xlab="Difference AO (Before and After 1 Month)",
+         color=diff$colour) #calling plot
+abline(abline(v=0-c(-1,0,1),lty=5, bg=2)) #drawing abline
 
+###T2xT3
+x <- T2 #definig variables for the function
+y <- T3
+d <- Case
+diff <- data.frame(x-y)
+diff$colour[diff$x...y>=2]<-"red" #creating color vector
+diff$colour[diff$x...y<= -2]<-"red"
+diff$colour[diff$x...y<2 & diff$x...y>0] <-"blue"
+diff$colour[diff$x...y> -2 & diff$x...y<0] <-"blue"
+diff$colour[diff$x...y==0] <-"darkgreen"
+
+dotchart(diff$x...y, groups=d,pch=25,ylim=c(-6,6),xlab="Difference AO (After AO Training and After 1 Month)",
+         color=diff$colour) #calling plot
+abline(abline(v=0-c(-1,0,1),lty=5, bg=2)) #drawing abline
+
+#Creating data frames for agreement between times of application for PGY2 (T1, T2 and T3)
+Inter1pg2<-data.frame(pg2$R1,pg2$R2) #Agreement between Before and After AO Training
+agree(Inter1pg2, tolerance=0)
+kappam.fleiss(Inter1pg2) #Kaplam-Fleiss agreement method for multiple raters
+
+Inter2pg2<-data.frame(pg2$R1,pg2$R3) #Agreement between Before and After 1 month of AO training
+agree(Inter2pg2, tolerance=0)
+kappam.fleiss(Inter2pg2) #Kaplam-Fleiss agreement method for multiple raters
+
+Inter3pg2<-data.frame(pg2$R2,pg2$R3) #Agreement between After and After 1 month of AO training
+agree(Inter3pg2, tolerance=0)
+kappam.fleiss(Inter3pg2) #Kaplam-Fleiss agreement method for multiple raters
+
+#Creating data frames for agreement between times of application for PGY3 (T1, T2 and T3)
+Inter1pg3<-data.frame(pg3$R1,pg3$R2) #Agreement between Before and After AO Training
+agree(Inter1pg3, tolerance=0)
+kappam.fleiss(Inter1pg3) #Kaplam-Fleiss agreement method for multiple raters
+
+Inter2pg3<-data.frame(pg3$R1,pg3$R3) #Agreement between Before and After 1 month of AO training
+agree(Inter2pg3, tolerance=0)
+kappam.fleiss(Inter2pg3) #Kaplam-Fleiss agreement method for multiple raters
+
+Inter3pg3<-data.frame(pg3$R2,pg3$R3) #Agreement between After and After 1 month of AO training
+agree(Inter3pg3, tolerance=0)
+kappam.fleiss(Inter3pg3) #Kaplam-Fleiss agreement method for multiple raters
+
+#Graph 6 - Bland-Altman Variation
 bland_altman_plot <- function(x,y,xlab="Average testresult", ylab="Deviation of experimental test")
 {
   d <- y
@@ -254,15 +270,28 @@ bland_altman_plot <- function(x,y,xlab="Average testresult", ylab="Deviation of 
   abline(h=0-c(-1,0,1),lty=5, bg=2)
 }
 
-#Graph 6 - 
-bland_altman_plot(T3,T2,ylab="Difference AO Score")
+#####PGY2
+bland_altman_plot(pg2$T3,pg2$T2,ylab="Difference AO Score",xlab="AO Responses")
 axis(1,1:8,c("33A1","33A2","33A3","33B1","33B2","33B3","33C1","33C2"))
 axis(2)
-d1 <- T1
-diff1 <- T1 - T2
+d1 <- pg2$T1
+diff1 <- pg2$T1 -pg2$T2
 points(diff1 ~ d1,pch=15,ylim=c(-6,6),xlab=xlab,ylab=ylab,col=90)
-d2 <- T1
-diff2 <- T1 - T3
+d2 <- pg2$T1
+diff2 <- pg2$T1 - pg2$T3
+points(diff2 ~ d2,pch=17,ylim=c(-6,6),xlab=xlab,ylab=ylab,col=35)
+legend("topleft", "Time of Aplication", c("T1xT2","T1xT3","T2xT3"), horiz=TRUE,
+       fill=c(90,35,"black"))
+
+#####PGY3
+bland_altman_plot(pg3$T3,pg3$T2,ylab="Difference AO Score",xlab="AO Responses")
+axis(1,1:8,c("33A1","33A2","33A3","33B1","33B2","33B3","33C1","33C2"))
+axis(2)
+d1 <- pg3$T1
+diff1 <- pg3$T1 -pg3$T2
+points(diff1 ~ d1,pch=15,ylim=c(-6,6),xlab=xlab,ylab=ylab,col=90)
+d2 <- pg3$T1
+diff2 <- pg3$T1 - pg3$T3
 points(diff2 ~ d2,pch=17,ylim=c(-6,6),xlab=xlab,ylab=ylab,col=35)
 legend("topleft", "Time of Aplication", c("T1xT2","T1xT3","T2xT3"), horiz=TRUE,
        fill=c(90,35,"black"))
